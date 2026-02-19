@@ -17,57 +17,57 @@ def deco(text):
     return decoded
 
 def google_translate(text, target_lang="en"):
-    url = "https://translate.googleapis.com/translate_a/single"
-    params = {
-        "client": "gtx",
-        "sl": "auto",
-        "tl": target_lang,
-        "dt": "t",
-        "q": text
-    }
-
-    response = requests.get(url, params=params)
-    result = response.json()
-
-    translated_text = ""
-    for item in result[0]:
-        translated_text += item[0]
-
-    return translated_text
+    try:
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": "auto",
+            "tl": target_lang,
+            "dt": "t",
+            "q": text
+        }
+        response = requests.get(url, params=params, timeout=5)
+        result = response.json()
+        translated_text = "".join([item[0] for item in result[0]])
+        return translated_text
+    except:
+        return text
 
 @app.route("/")
 def generate():
     text = request.args.get("text")
 
     if not text:
-        return "Error: No text provided", 400
+        return "No text provided", 400
 
-    text = deco(text)
-    translated = google_translate(text, "en")
+    try:
+        text = deco(text)
+        translated = google_translate(text, "en")
 
-    url = "https://api.websim.com/api/v1/inference/run_image_generation"
+        url = "https://api.websim.com/api/v1/inference/run_image_generation"
 
-    payload = {
-        "project_id": "hcrvyemb62atnf29vvhr",
-        "prompt": translated,
-        "aspect_ratio": "1:1"
-    }
+        payload = {
+            "project_id": "hcrvyemb62atnf29vvhr",
+            "prompt": translated,
+            "aspect_ratio": "1:1"
+        }
 
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/json",
-        "origin": "https://websim.com",
-        "referer": "https://websim.com/"
-    }
+        headers = {
+            "Content-Type": "application/json"
+        }
 
-    response = requests.post(url, json=payload, headers=headers)
-    data = response.json()
+        response = requests.post(url, json=payload, headers=headers, timeout=8)
 
-    if "url" in data:
-        image_response = requests.get(data["url"])
-        return Response(image_response.content, content_type="image/jpeg")
-    else:
-        return "لا توجد صوره"
+        try:
+            data = response.json()
+        except:
+            return "Invalid API response", 500
 
-# مهم عشان vercel
-handler = app
+        if "url" in data:
+            image_response = requests.get(data["url"], timeout=8)
+            return Response(image_response.content, content_type="image/jpeg")
+
+        return "No image returned"
+
+    except Exception as e:
+        return f"Server Error: {str(e)}", 500
